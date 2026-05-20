@@ -4,76 +4,55 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <map>
 #include <iomanip>
 #include <cctype>
 #include <windows.h>
 
 using namespace std;
 
-string trim(const string& s) {
-    size_t start = s.find_first_not_of(" \t\n\r");
-    if (start == string::npos) return "";
-    size_t end = s.find_last_not_of(" \t\n\r");
-    return s.substr(start, end - start + 1);
-}
+// Структура для одной страны
+struct Country {
+    string name;
+    string capital;
+    unsigned int population;
+    float area;
+    string industry;
+    string religion;
+};
 
-string toLower(const string& s) {
-    string res = trim(s);
-    for (char& c : res) c = tolower((unsigned char)c);
+vector<Country> baza;
+
+// очистка пробелов и перевод в нижний регистр (для поиска и сортировки)
+string toLower(string s) {
+    int start = 0;
+    while (start < s.size() && (s[start] == ' ' || s[start] == '\t' || s[start] == '\r' || s[start] == '\n')) start++;
+    int end = s.size() - 1;
+    while (end >= 0 && (s[end] == ' ' || s[end] == '\t' || s[end] == '\r' || s[end] == '\n')) end--;
+    if (start > end) return "";
+    string res = s.substr(start, end - start + 1);
+    for (int i = 0; i < res.size(); i++) {
+        res[i] = tolower((unsigned char)res[i]);
+    }
     return res;
 }
 
-class Country {
-private:
-    string name, nameLow;
-    string capital, capitalLow;
-    unsigned int population;
-    float area;
-    string industry, industryLow;
-    string religion, religionLow;
-
-public:
-    Country() : population(0), area(0) {}
-    Country(const string& n, const string& cap, unsigned int pop, float a,
-        const string& ind, const string& rel)
-        : name(n), capital(cap), population(pop), area(a), industry(ind), religion(rel) {
-        nameLow = toLower(n);
-        capitalLow = toLower(cap);
-        industryLow = toLower(ind);
-        religionLow = toLower(rel);
+// Загрузка из файла
+void zagruzit() {
+    string filename;
+    cout << "Имя файла: ";
+    cin >> filename;
+    ifstream fin(filename);
+    if (!fin) {
+        cout << "Не открыть файл!\n";
+        return;
     }
-
-    string getName()      const { return name; }
-    string getCapital()   const { return capital; }
-    unsigned int getPopulation() const { return population; }
-    float getArea()       const { return area; }
-    string getIndustry()  const { return industry; }
-    string getReligion()  const { return religion; }
-
-    string getNameLow()   const { return nameLow; }
-    string getCapitalLow()const { return capitalLow; }
-    string getIndustryLow()const { return industryLow; }
-    string getReligionLow()const { return religionLow; }
-
-    double getDensity() const { return (area > 0) ? population / (double)area : 0; }
-
-    string toString() const {
-        ostringstream oss;
-        oss << left << setw(25) << name
-            << setw(20) << capital
-            << setw(15) << population
-            << setw(12) << area
-            << setw(20) << industry
-            << setw(15) << religion;
-        return oss.str();
-    }
-
-    string toFileString() const {
-        return name + ";" + capital + ";" + to_string(population) + ";" + to_string(area) + ";" + industry + ";" + religion;
-    }
-
-    static Country fromFileString(const string& line) {
+    baza.clear();
+    string line;
+    while (getline(fin, line)) {
+        if (line.empty()) continue;
+        if (line.size() >= 3 && (unsigned char)line[0] == 0xEF && (unsigned char)line[1] == 0xBB && (unsigned char)line[2] == 0xBF) {
+            line = line.substr(3);
+        }
         stringstream ss(line);
         string name, cap, ind, rel, popStr, areaStr;
         getline(ss, name, ';');
@@ -82,193 +61,290 @@ public:
         getline(ss, areaStr, ';');
         getline(ss, ind, ';');
         getline(ss, rel, ';');
-        name = trim(name);
-        cap = trim(cap);
-        ind = trim(ind);
-        rel = trim(rel);
-        unsigned int pop = (unsigned int)stoul(popStr);
-        float a = stof(areaStr);
-        return Country(name, cap, pop, a, ind, rel);
+        Country c;
+        c.name = name;
+        c.capital = cap;
+        c.industry = ind;
+        c.religion = rel;
+        c.population = stoul(popStr);
+        c.area = stof(areaStr);
+        baza.push_back(c);
     }
-};
+    fin.close();
+    cout << "Загружено " << baza.size() << " записей.\n";
+}
 
-class Database {
-    vector<Country> data;
-public:
-    bool load(const string& file) {
-        ifstream f(file);
-        if (!f) { cerr << "Error: cannot open " << file << endl; return false; }
-        data.clear();
-        string line;
-        while (getline(f, line)) if (!line.empty()) data.push_back(Country::fromFileString(line));
-        f.close();
-        cout << "Loaded " << data.size() << " records.\n";
-        return true;
+// Сохранение в файл
+void sohranit() {
+    string filename;
+    cout << "Имя файла: ";
+    cin >> filename;
+    ofstream fout(filename);
+    if (!fout) {
+        cout << "Не создать файл!\n";
+        return;
     }
-
-    bool save(const string& file) const {
-        ofstream f(file);
-        if (!f) { cerr << "Error: cannot create " << file << endl; return false; }
-        for (auto& c : data) f << c.toFileString() << endl;
-        f.close();
-        cout << "Saved " << data.size() << " records.\n";
-        return true;
+    for (int i = 0; i < baza.size(); i++) {
+        fout << baza[i].name << ";" << baza[i].capital << ";" << baza[i].population << ";" << baza[i].area << ";" << baza[i].industry << ";" << baza[i].religion << endl;
     }
+    fout.close();
+    cout << "Сохранено " << baza.size() << " записей.\n";
+}
 
-    void display() const {
-        if (data.empty()) { cout << "Database is empty.\n"; return; }
-        cout << "\n" << left << setw(25) << "Name" << setw(20) << "Capital"
-            << setw(15) << "Population" << setw(12) << "Area"
-            << setw(20) << "Industry" << setw(15) << "Religion" << endl;
-        cout << string(107, '-') << endl;
-        for (auto& c : data) cout << c.toString() << endl;
-        cout << endl;
+// Показать всё
+void pokazat() {
+    if (baza.empty()) { cout << "База пуста.\n"; return; }
+    cout << "\n";
+    int w_name = 38;
+    int w_capital = 24;
+    int w_pop = 22;
+    int w_area = 20;
+    int w_ind = 55;
+    int w_rel = 32;
+    cout << left << setw(w_name) << "Название"
+        << setw(w_capital) << "Столица"
+        << setw(w_pop) << "Население"
+        << setw(w_area) << "Площадь"
+        << setw(w_ind) << "Промышленность"
+        << setw(w_rel) << "Религия" << endl;
+    cout << string(w_name + w_capital + w_pop + w_area + w_ind + w_rel, '-') << endl;
+    for (int i = 0; i < baza.size(); i++) {
+        cout << left << setw(w_name) << baza[i].name
+            << setw(w_capital) << baza[i].capital
+            << setw(w_pop) << baza[i].population
+            << setw(w_area) << (int)baza[i].area
+            << setw(w_ind) << baza[i].industry
+            << setw(w_rel) << baza[i].religion << endl;
     }
+    cout << endl;
+}
 
-    void add() {
-        string n, cap, ind, rel;
-        unsigned int pop;
-        float a;
-        cout << "Enter name: "; cin.ignore(); getline(cin, n);
-        cout << "Capital: "; getline(cin, cap);
-        cout << "Population: "; cin >> pop;
-        cout << "Area (sq km): "; cin >> a;
-        cout << "Industry: "; cin.ignore(); getline(cin, ind);
-        cout << "Religion: "; getline(cin, rel);
-        data.emplace_back(n, cap, pop, a, ind, rel);
-        cout << "Record added.\n";
+
+// Добавлени записи
+void dobavit() {
+    Country c;
+    cout << "Название: ";
+    cin.ignore();
+    getline(cin, c.name);
+    cout << "Столица: ";
+    getline(cin, c.capital);
+    cout << "Население: ";
+    cin >> c.population;
+    cout << "Площадь: ";
+    cin >> c.area;
+    cout << "Промышленность: ";
+    cin.ignore();
+    getline(cin, c.industry);
+    cout << "Религия: ";
+    getline(cin, c.religion);
+    baza.push_back(c);
+    cout << "Добавлено.\n";
+}
+
+// Удалить по номеру
+void udalit() {
+    if (baza.empty()) {
+        cout << "Нет записей.\n";
+        return;
     }
-
-    void remove() {
-        if (data.empty()) { cout << "No records.\n"; return; }
-        display();
-        cout << "Enter number to delete (1.." << data.size() << "): ";
-        int idx; cin >> idx;
-        if (idx < 1 || idx >(int)data.size()) { cout << "Invalid.\n"; return; }
-        data.erase(data.begin() + idx - 1);
-        cout << "Deleted.\n";
+    pokazat();
+    cout << "Номер для удаления (1.." << baza.size() << "): ";
+    int num;
+    cin >> num;
+    if (num < 1 || num > baza.size()) {
+        cout << "Неверный номер.\n";
+        return;
     }
+    baza.erase(baza.begin() + num - 1);
+    cout << "Удалено.\n";
+}
 
-    void sortByName() {
-        sort(data.begin(), data.end(), [](const Country& a, const Country& b) {
-            return a.getNameLow() < b.getNameLow();
-            });
-        cout << "Sorted by name.\n";
-    }
-
-    void search() const {
-        if (data.empty()) { cout << "Database empty.\n"; return; }
-        cout << "Enter country name: ";
-        string q; cin.ignore(); getline(cin, q);
-        string qlow = toLower(q);
-        for (auto& c : data) {
-            if (c.getNameLow() == qlow) {
-                cout << "\nFound:\n";
-                cout << left << setw(25) << "Name" << setw(20) << "Capital"
-                    << setw(15) << "Population" << setw(12) << "Area"
-                    << setw(20) << "Industry" << setw(15) << "Religion" << endl;
-                cout << string(107, '-') << endl;
-                cout << c.toString() << endl << endl;
-                return;
+// Сортировка по названию
+void sortirovka() {
+    for (int i = 0; i < baza.size(); i++) {
+        for (int j = i + 1; j < baza.size(); j++) {
+            string s1 = toLower(baza[i].name);
+            string s2 = toLower(baza[j].name);
+            if (s1 > s2) {
+                swap(baza[i], baza[j]);
             }
         }
-        cout << "Not found.\n";
     }
+    cout << "Отсортировано.\n";
+}
 
-    void filterPopulation() const {
-        if (data.empty()) { cout << "Database empty.\n"; return; }
-        unsigned int minP, maxP;
-        cout << "Min population: "; cin >> minP;
-        cout << "Max population: "; cin >> maxP;
-        if (minP > maxP) swap(minP, maxP);
-        cout << "\nCountries with population " << minP << ".." << maxP << ":\n";
-        cout << left << setw(25) << "Name" << setw(20) << "Capital"
-            << setw(15) << "Population" << setw(12) << "Area"
-            << setw(20) << "Industry" << setw(15) << "Religion" << endl;
-        cout << string(107, '-') << endl;
-        bool any = false;
-        for (auto& c : data) {
-            if (c.getPopulation() >= minP && c.getPopulation() <= maxP) {
-                cout << c.toString() << endl;
-                any = true;
+// Поиск по названию
+void poisk() {
+    if (baza.empty()) {
+        cout << "База пуста.\n";
+        return;
+    }
+    cout << "Введите название: ";
+    string query;
+    cin.ignore();
+    getline(cin, query);
+    string qlow = toLower(query);
+    for (int i = 0; i < baza.size(); i++) {
+        if (toLower(baza[i].name) == qlow) {
+            cout << "\nНайдено:\n";
+            int w_name = 38;
+            int w_capital = 24;
+            int w_pop = 22;
+            int w_area = 20;
+            int w_ind = 55;
+            int w_rel = 32;
+            cout << left << setw(w_name) << "Название"
+                << setw(w_capital) << "Столица"
+                << setw(w_pop) << "Население"
+                << setw(w_area) << "Площадь"
+                << setw(w_ind) << "Промышленность"
+                << setw(w_rel) << "Религия" << endl;
+            cout << string(w_name + w_capital + w_pop + w_area + w_ind + w_rel, '-') << endl;
+            cout << left << setw(w_name) << baza[i].name
+                << setw(w_capital) << baza[i].capital
+                << setw(w_pop) << baza[i].population
+                << setw(w_area) << (int)baza[i].area
+                << setw(w_ind) << baza[i].industry
+                << setw(w_rel) << baza[i].religion << endl << endl;
+            return;
+        }
+    }
+    cout << "Не найдено.\n";
+}
+
+// Фильтр по населению
+void filtr() {
+    if (baza.empty()) {
+        cout << "База пуста.\n";
+        return;
+    }
+    unsigned int minp, maxp;
+    cout << "Мин население: ";
+    cin >> minp;
+    cout << "Макс население: ";
+    cin >> maxp;
+    if (minp > maxp) swap(minp, maxp);
+    cout << "\nСтраны с населением от " << minp << " до " << maxp << ":\n";
+    cout << left << setw(25) << "Название" << setw(20) << "Столица" << setw(15) << "Население" << setw(12) << "Площадь" << setw(20) << "Промышленность" << setw(15) << "Религия" << endl;
+    cout << string(107, '-') << endl;
+    bool est = false;
+    for (int i = 0; i < baza.size(); i++) {
+        if (baza[i].population >= minp && baza[i].population <= maxp) {
+            cout << left << setw(25) << baza[i].name << setw(20) << baza[i].capital << setw(15) << baza[i].population << setw(12) << baza[i].area << setw(20) << baza[i].industry << setw(15) << baza[i].religion << endl;
+            est = true;
+        }
+    }
+    if (!est) cout << "Нет.\n";
+    cout << endl;
+}
+
+// Группировка по промышленности
+void gruppirovka() {
+    if (baza.empty()) {
+        cout << "База пуста.\n";
+        return;
+    }
+    // уникальные промышленности
+    vector<string> industries;
+    for (int i = 0; i < baza.size(); i++) {
+        string ind = toLower(baza[i].industry);
+        bool found = false;
+        for (int j = 0; j < industries.size(); j++) {
+            if (industries[j] == ind) { found = true; break; }
+        }
+        if (!found) industries.push_back(ind);
+    }
+    // Для каждой промышленности страны
+    for (int g = 0; g < industries.size(); g++) {
+        vector<Country> temp;
+        for (int i = 0; i < baza.size(); i++) {
+            if (toLower(baza[i].industry) == industries[g]) {
+                temp.push_back(baza[i]);
             }
         }
-        if (!any) cout << "None.\n";
-        cout << endl;
-    }
-
-    void groupByIndustry() const {
-        if (data.empty()) { cout << "Database empty.\n"; return; }
-        map<string, vector<Country>> groups;
-        for (auto& c : data) groups[c.getIndustryLow()].push_back(c);
-        for (auto& [key, vec] : groups) {
-            sort(vec.begin(), vec.end(), [](const Country& a, const Country& b) {
-                return a.getNameLow() < b.getNameLow();
-                });
-            cout << "\nIndustry: " << vec[0].getIndustry() << "\n";
-            cout << string(vec[0].getIndustry().length() + 10, '-') << endl;
-            for (auto& c : vec)
-                cout << "  " << c.getName() << " (capital: " << c.getCapital()
-                << ", population: " << c.getPopulation() << ", area: " << c.getArea() << ")\n";
+        // сортировка внутри temp по названию
+        for (int i = 0; i < temp.size(); i++) {
+            for (int j = i + 1; j < temp.size(); j++) {
+                if (toLower(temp[i].name) > toLower(temp[j].name)) {
+                    swap(temp[i], temp[j]);
+                }
+            }
         }
-        cout << endl;
+        cout << "\nПромышленность: " << temp[0].industry << endl;
+        cout << string(temp[0].industry.size() + 10, '-') << endl;
+        for (int i = 0; i < temp.size(); i++) {
+            cout << "  " << temp[i].name << " (столица: " << temp[i].capital << ", население: " << temp[i].population << ", площадь: " << temp[i].area << ")\n";
+        }
     }
+    cout << endl;
+}
 
-    void exportHighDensity() {
-        if (data.empty()) { cout << "Database empty.\n"; return; }
-        double p;
-        cout << "Density threshold (people/sq km): "; cin >> p;
-        vector<Country> res;
-        for (auto& c : data) if (c.getDensity() > p) res.push_back(c);
-        if (res.empty()) { cout << "No countries.\n"; return; }
-        string fname;
-        cout << "Output file name: "; cin >> fname;
-        ofstream f(fname);
-        if (!f) { cerr << "Cannot create file.\n"; return; }
-        for (auto& c : res) f << c.toFileString() << endl;
-        f.close();
-        cout << "Saved " << res.size() << " countries to " << fname << endl;
+// Экспорт стран с плотностью > p
+void exportPlotnost() {
+    if (baza.empty()) {
+        cout << "База пуста.\n";
+        return;
     }
-};
-
-void menu() {
-    cout << "\n========== MENU ==========\n";
-    cout << "1. Load DB from file\n";
-    cout << "2. Save DB to file\n";
-    cout << "3. Display all\n";
-    cout << "4. Add record\n";
-    cout << "5. Delete record\n";
-    cout << "6. Sort by name\n";
-    cout << "7. Search by name\n";
-    cout << "8. Filter by population\n";
-    cout << "9. Group by industry (task 1)\n";
-    cout << "10. Export density > p (task 2)\n";
-    cout << "0. Exit\n";
-    cout << "Your choice: ";
+    double p;
+    cout << "Порог плотности (чел/кв.км): ";
+    cin >> p;
+    vector<Country> result;
+    for (int i = 0; i < baza.size(); i++) {
+        double dens = (baza[i].area > 0) ? baza[i].population / (double)baza[i].area : 0;
+        if (dens > p) result.push_back(baza[i]);
+    }
+    if (result.empty()) {
+        cout << "Нет стран с такой плотностью.\n";
+        return;
+    }
+    string fname;
+    cout << "Имя файла для сохранения: ";
+    cin >> fname;
+    ofstream fout(fname);
+    if (!fout) {
+        cout << "Ошибка создания файла.\n";
+        return;
+    }
+    for (int i = 0; i < result.size(); i++) {
+        fout << result[i].name << ";" << result[i].capital << ";" << result[i].population << ";" << result[i].area << ";" << result[i].industry << ";" << result[i].religion << endl;
+    }
+    fout.close();
+    cout << "Сохранено " << result.size() << " стран в файл " << fname << endl;
 }
 
 int main() {
     SetConsoleOutputCP(65001);
     SetConsoleCP(65001);
-    Database db;
-    int ch;
+    int choice;
     do {
-        menu();
-        cin >> ch;
-        switch (ch) {
-        case 1: { string f; cout << "Filename: "; cin >> f; db.load(f); break; }
-        case 2: { string f; cout << "Filename: "; cin >> f; db.save(f); break; }
-        case 3: db.display(); break;
-        case 4: db.add(); break;
-        case 5: db.remove(); break;
-        case 6: db.sortByName(); break;
-        case 7: db.search(); break;
-        case 8: db.filterPopulation(); break;
-        case 9: db.groupByIndustry(); break;
-        case 10: db.exportHighDensity(); break;
-        case 0: cout << "Goodbye!\n"; break;
-        default: cout << "Invalid choice.\n";
+        cout << "\n========== МЕНЮ ==========\n";
+        cout << "1. Загрузить БД из файла\n";
+        cout << "2. Сохранить БД в файл\n";
+        cout << "3. Просмотреть БД\n";
+        cout << "4. Добавить запись\n";
+        cout << "5. Удалить запись\n";
+        cout << "6. Сортировка по названию\n";
+        cout << "7. Поиск по названию\n";
+        cout << "8. Фильтр по населению\n";
+        cout << "9. Группировка по промышленности (задача 1)\n";
+        cout << "10. Экспорт с плотностью > p (задача 2)\n";
+        cout << "0. Выход\n";
+        cout << "Ваш выбор: ";
+        cin >> choice;
+        switch (choice) {
+        case 1: zagruzit(); break;
+        case 2: sohranit(); break;
+        case 3: pokazat(); break;
+        case 4: dobavit(); break;
+        case 5: udalit(); break;
+        case 6: sortirovka(); break;
+        case 7: poisk(); break;
+        case 8: filtr(); break;
+        case 9: gruppirovka(); break;
+        case 10: exportPlotnost(); break;
+        case 0: cout << "Пока!\n"; break;
+        default: cout << "Неверный пункт\n";
         }
-    } while (ch != 0);
+    } while (choice != 0);
     return 0;
 }
